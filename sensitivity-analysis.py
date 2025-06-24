@@ -19,16 +19,16 @@ class AIHumanImpactCalculator:
         # Baseline parameters
         self.baseline_params = {
             # High-impact parameters
-            'prompts_per_task': 5,           # Number of prompts per writing task
+            'prompts_per_task': 4,           # Number of prompts per writing task
             'gpu_utilization': 0.70,         # GPU utilization rate (70%)
             'queries_per_month': 3e9,        # Total queries per month (3 billion)
             'training_days': 3.5,            # Training duration in days
             
             # Medium-impact parameters
-            'carbon_intensity': 390,         # gCO2e/kWh
-            'gpu_lifespan_years': 1.5,       # GPU lifespan in years
-            'server_lifespan_years': 4,      # Server lifespan in years
-            'pue': 1.1,                      # Power Usage Effectiveness
+            'carbon_intensity': 400,         # gCO2e/kWh, IEA projected 2027 global average
+            'gpu_lifespan_years': 1.5,       # GPU lifespan in years, from Tomlinson et al
+            'server_lifespan_years': 4,      # Server lifespan in years, Standard enterprise lifecycle
+            'pue': 1.15,                      # Power Usage Effectiveness, AWS-level efficiency
             
             # Low-impact parameters (fixed for this analysis)
             'writing_time_hours': 0.83,      # Time to write one page (hours)
@@ -51,16 +51,16 @@ class AIHumanImpactCalculator:
         # Parameter ranges for sensitivity analysis
         self.param_ranges = {
             # High-impact parameters
-            'prompts_per_task': [1, 3, 5, 7, 10], # right skewed from baseline (5)
-            'gpu_utilization': [0.50, 0.70, 0.90],
-            'queries_per_month': [3e8, 3e9, 10e9],
-            'training_days': [3.5, 7, 10, 15, 30],
+            'prompts_per_task': [1, 2, 4, 8, 15],           # Right-skewed user behavior
+            'gpu_utilization': [0.40, 0.70, 0.85],         # Patel et al. 2024 range
+            'queries_per_month': [1e9, 3e9, 12e9],         # OpenAI 100M+ users, usage uncertainty
+            'training_days': [2, 3.5, 7, 14],              # Narayanan et al. scaling with uncertainty
             
-            # Medium-impact parameters
-            'carbon_intensity': [200, 300, 400],
-            'gpu_lifespan_years': [1, 1.5, 2, 2.5, 3],
-            'server_lifespan_years': [2, 3, 4, 5, 6],
-            'pue': [1.05, 1.1, 1.2],
+            # Medium-impact parameters  
+            'carbon_intensity': [150, 400, 715],           # Denmark (clean) to India (coal-heavy)
+            'gpu_lifespan_years': [1.1, 1.5, 2.0],        # Tech obsolescence vs durability
+            'server_lifespan_years': [3, 4, 5],           # Standard enterprise cycles
+            'pue': [1.08, 1.15, 1.25],                    # Google/Meta best-in-class to moderate efficiency
         }
     
     def calculate_ai_emissions(self, params: Dict) -> Dict[str, float]:
@@ -166,25 +166,31 @@ class AIHumanImpactCalculator:
         """Perform scenario-based analysis"""
         scenarios = {
             'Optimistic': {
-                'prompts_per_task': 3,
-                'gpu_utilization': 0.50,
-                'queries_per_month': 10e9,
-                'training_days': 3,
-                'carbon_intensity': 200,
-                'gpu_lifespan_years': 2,
-                'server_lifespan_years': 5,
-                'pue': 1.05
+                # High-impact parameters (favor AI)
+                'prompts_per_task': 1,              # Perfect first attempt
+                'gpu_utilization': 0.40,            # Low utilization (mixed cloud workloads)
+                'queries_per_month': 12e9,          # High query volume (better amortization of training)
+                'training_days': 2,                 # Highly optimized training
+                
+                # Medium-impact parameters (best efficiency)
+                'carbon_intensity': 150,            # Clean grid (Denmark-level)
+                'gpu_lifespan_years': 2.0,          # Extended hardware life
+                'server_lifespan_years': 5,         # Extended server life
+                'pue': 1.08,  
             },
             'Realistic': self.baseline_params,
             'Pessimistic': {
-                'prompts_per_task': 10,
-                'gpu_utilization': 1,
-                'queries_per_month': 3e9,
-                'training_days': 10,
-                'carbon_intensity': 390,
-                'gpu_lifespan_years': 1,
-                'server_lifespan_years': 3,
-                'pue': 1.2
+                # High-impact parameters (unfavorable to AI)
+                'prompts_per_task': 15,             # Heavy iteration for complex tasks
+                'gpu_utilization': 0.85,            # High utilization (dedicated ML workloads)
+                'queries_per_month': 1e9,           # Low query volume (poor amortization of training)
+                'training_days': 14,                # Extended training with inefficiencies
+                
+                # Medium-impact parameters (worst efficiency)
+                'carbon_intensity': 715,            # Coal-heavy grid (India-level)
+                'gpu_lifespan_years': 1.1,          # Rapid technological obsolescence
+                'server_lifespan_years': 3,         # Aggressive replacement cycle
+                'pue': 1.25,                        # Moderately efficient data center
             }
         }
         
@@ -245,7 +251,7 @@ class AIHumanImpactCalculator:
             
             # Add parameter name
             param_name = param_data['parameter'].replace('_', ' ').title()
-            ax.text(-2, i, param_name, ha='right', va='center')
+            ax.text(-0.5, i, param_name, ha='right', va='center')
             
             # Add range values
             ax.text(max_val + 0.1, i, f"±{param_data['range_size']:.2f}", 
@@ -255,6 +261,7 @@ class AIHumanImpactCalculator:
         ax.axvline(x=0, color='red', linestyle='--', alpha=0.3)
         
         ax.set_xlabel('Net Impact (gCO2e/task)')
+        # ax.set_ylabel(self.param_ranges.keys())
         ax.set_title('Parameter Sensitivity Analysis: AI vs Human Writing Task\n(Tornado Diagram)')
         ax.set_yticks([])
         ax.grid(axis='x', alpha=0.3)
