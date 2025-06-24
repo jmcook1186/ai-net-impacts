@@ -99,6 +99,7 @@ class AIHumanImpactCalculator:
 
 
         # Per-query emissions
+        inference_operational_kwh_per_query = inference_operational_kwh / params['queries_per_month']
         training_operational_per_query = training_operational_co2e / params['queries_per_month']
         training_embodied_per_query = training_embodied / params['queries_per_month']
         inference_operational_per_query = inference_operational_co2e / params['queries_per_month']
@@ -106,6 +107,7 @@ class AIHumanImpactCalculator:
         
         # Per-task emissions (multiply by prompts per task)
         ai_emissions = {
+            'inference_energy': inference_operational_kwh_per_query,
             'training_operational': training_operational_per_query * params['prompts_per_task'],
             'training_embodied': training_embodied_per_query * params['prompts_per_task'],
             'inference_operational': inference_operational_per_query * params['prompts_per_task'],
@@ -127,6 +129,7 @@ class AIHumanImpactCalculator:
         net_impact = (ai_emissions['total'] + human_emissions) - human_emissions # we do not consider any of the human emissions to have been negated by the introduction of the AI 
         
         return net_impact, {
+            'inference_energy': ai_emissions['inference_energy'],
             'ai_total': ai_emissions['total'],
             'ai_breakdown': ai_emissions,
             'ai_+_human': ai_emissions['total']+human_emissions,
@@ -188,7 +191,7 @@ class AIHumanImpactCalculator:
                 
                 # Medium-impact parameters (worst efficiency)
                 'carbon_intensity': 715,            # Coal-heavy grid (India-level)
-                'gpu_lifespan_years': 1.1,          # Rapid technological obsolescence
+                'gpu_lifespan_years': 1,          # Rapid technological obsolescence
                 'server_lifespan_years': 3,         # Aggressive replacement cycle
                 'pue': 1.25,                        # Moderately efficient data center
             }
@@ -251,10 +254,10 @@ class AIHumanImpactCalculator:
             
             # Add parameter name
             param_name = param_data['parameter'].replace('_', ' ').title()
-            ax.text(-0.5, i, param_name, ha='right', va='center')
+            ax.text(-0.8, i, param_name, ha='right', va='center')
             
             # Add range values
-            ax.text(max_val + 0.1, i, f"±{param_data['range_size']:.2f}", 
+            ax.text(max_val + 0.03, i, f"±{param_data['range_size']:.2f}", 
                    ha='left', va='center', fontsize=10)
         
         # Add vertical line at zero
@@ -262,9 +265,9 @@ class AIHumanImpactCalculator:
         
         ax.set_xlabel('Net Impact (gCO2e/task)')
         # ax.set_ylabel(self.param_ranges.keys())
-        ax.set_title('Parameter Sensitivity Analysis: AI vs Human Writing Task\n(Tornado Diagram)')
+        ax.set_title('Net impact (gCO2e) ranges for each parameter')
         ax.set_yticks([])
-        ax.grid(axis='x', alpha=0.3)
+        # ax.grid(axis='x', alpha=0.3)
         
         plt.tight_layout()
         return fig
@@ -288,6 +291,7 @@ class AIHumanImpactCalculator:
         print(f"AI only: {baseline_details['ai_total']:.2f} gCO2e/task")
         print(f"AI + human: {baseline_details['ai_+_human']:.2f} gCO2e/task")
         print(f"Human only: {baseline_details['human_total']:.2f} gCO2e/task")
+        print("Operational energy of inference per prompt", baseline_details['inference_energy'])
         
         print("\n2. PARAMETER SENSITIVITY RANGES")
         print("the range of net impact in gCO2 that results from varying this param off the baseline")
