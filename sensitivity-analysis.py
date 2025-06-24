@@ -270,6 +270,7 @@ class AIHumanImpactCalculator:
         # ax.grid(axis='x', alpha=0.3)
         
         plt.tight_layout()
+        plt.savefig('./tornado_plot.png')
         return fig
     
     def run_full_analysis(self):
@@ -330,4 +331,4 @@ if __name__ == "__main__":
     results['scenario_df'].to_csv('scenario_analysis.csv', index=False)
     
     print("\nAnalysis complete! Results saved to CSV files.")
-    print("Tornado diagram displayed above.")
+    print("Tornado diagram saved to project root.")
