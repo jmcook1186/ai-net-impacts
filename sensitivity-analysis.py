@@ -126,7 +126,10 @@ class AIHumanImpactCalculator:
         """Calculate net impact (AI - Human emissions)"""
         ai_emissions = self.calculate_ai_emissions(params)
         human_emissions = self.calculate_human_emissions(params)
-        net_impact = (ai_emissions['total'] + human_emissions) - human_emissions # we do not consider any of the human emissions to have been negated by the introduction of the AI 
+        
+        # we do not consider any of the human emissions to have been negated by the introduction of the AI, unless the value of time_eficiency is changed
+        time_efficiency = 1
+        net_impact = (ai_emissions['total'] + human_emissions) - human_emissions * time_efficiency
         
         return net_impact, {
             'inference_energy': ai_emissions['inference_energy'],
