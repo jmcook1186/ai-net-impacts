@@ -24,7 +24,7 @@ class AIHumanImpactCalculator:
             'gpu_utilization': 0.70,         # GPU utilization rate (70%)
             'queries_per_month': 3e9,        # Total queries per month (3 billion)
             'training_days': 3.5,            # Training duration in days
-            'efficiency_gain': 0.3,          # Fraction of human time saved by the AI
+            'efficiency_gain': 0,          # Fraction of human time saved by the AI
             
             # Medium-impact parameters
             # 'carbon_intensity_elec': 400,         # gCO2e/kWh, IEA projected 2027 global average
@@ -57,7 +57,17 @@ class AIHumanImpactCalculator:
             'fraction_house_writing' : 0.125,   # none
             'laptop_daily_energy': 0.05,        # kWh
             'laptop_embodied_kg': 197,          # kgCO2e
-            'laptop_lifetime_years': 4          # years
+            'laptop_lifetime_years': 4,         # years
+
+            # Additional parameters used by Tomlinson's
+            'training_operational': 5.52e8, # gCO2e
+            'training_inference': 3.82e6, # gCO2e/day
+            'gpu_embodied_recycling_kg': 1, # kgCO2e 
+            'training_time_tomlinson': 3222, # hours
+            'words_per_page':250,
+            'words_per_response':412,
+            'queries_per_month': 3e8,        # queries per month
+            'carbon_per_capita_per_hour': 1.71e3 # USA value 
 
         }
 
@@ -173,6 +183,11 @@ class AIHumanImpactCalculator:
         human_emissions['total'] = sum(human_emissions.values())
         
         return human_emissions
+    
+    def calculate_human_emissions_tomlinson(self, params: Dict) -> float:
+        """Replicate Tomlinson's calculation of human emissions """
+        
+        return params['writing_time_hours'] * params['carbon_per_capita_per_hour']
     
     def calculate_net_impact(self, params: Dict) -> Tuple[float, Dict]:
         """Calculate net impact (AI - Human emissions)"""
