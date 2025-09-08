@@ -4,14 +4,26 @@ Parametric Sensitivity Analysis for AI vs Human Environmental Impact Assessment
 Based on corrected methodology from Case Study analysis
 """
 
+from pathlib import Path
+import pprint
+
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+# import matplotlib.pyplot as plt
+# import seaborn as sns
+import plotly.graph_objects as go
+
 from typing import Dict, List, Tuple
 import warnings
-import pprint
 warnings.filterwarnings('ignore')
+
+
+
+
+
+# Should heating and lighting cost be included?
+# - If not, we also exclude the PUE from the scope of the AI calculation
+include_heating_lighting = True 
 
 class AIHumanImpactCalculator:
     """Calculator for AI vs Human environmental impact with parametric analysis"""
@@ -22,13 +34,14 @@ class AIHumanImpactCalculator:
             # High-impact parameters
             'prompts_per_task': 4,           # Number of prompts per writing task
             'gpu_utilization': 0.70,         # GPU utilization rate (70%)
-            'queries_per_month': 3e9,        # Total queries per month (3 billion)
+            # 'queries_per_month': 3e9,        # Total queries per month (3 billion)
+            'queries_per_month': 3e8,        # Total queries per month (using same as Tomlinson's)
             'training_days': 3.5,            # Training duration in days
-            'efficiency_gain': 0,          # Fraction of human time saved by the AI
+            'efficiency_gain': 0.3,          # Fraction of human time saved by the AI
             
             # Medium-impact parameters
             # 'carbon_intensity_elec': 400,         # gCO2e/kWh, IEA projected 2027 global average
-            'carbon_intensity_elec': 162,    # gCO2e/kWh - 2023 UK average carbon intensity
+            'carbon_intensity_elec': 175,    # gCO2e/kWh - 2024 UK average carbon intensity
             'carbon_intensity_gas': 185,     # gCO2e/kWh - Natural gaz carbon intensity
             'gpu_lifespan_years': 1.5,       # GPU lifespan in years, from Tomlinson et al
             'server_lifespan_years': 4,      # Server lifespan in years, Standard enterprise lifecycle
@@ -36,7 +49,7 @@ class AIHumanImpactCalculator:
             
             # Low-impact parameters (fixed for this analysis)
             'writing_time_hours': 0.83,      # Time to write one page (hours)
-            'gpu_power_w': 300,              # GPU power consumption (Watts)
+            'gpu_power_w': 400,              # GPU power consumption (Watts): https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet.pdf
             'num_training_gpus': 10000,      # Number of GPUs for training
             'num_inference_gpus': 14468,     # Number of GPUs for inference
             'gpu_embodied_kg': 150,          # Embodied carbon per GPU (kg CO2e)
@@ -50,28 +63,27 @@ class AIHumanImpactCalculator:
             # 'heating_gco2e': 16.63,          # gCO2e per task
             # 'laptop_operational_gco2e': 0.28, # gCO2e per task
             # 'laptop_embodied_gco2e': 4.66,    # gCO2e per task
-            'annual_elec_household' : 3941,     # kWh
-            'annual_gas_household' : 11500,     # kWh
+            'annual_elec_household' : 2700,     # kWh - https://www.ofgem.gov.uk/information-consumers/energy-advice-households/average-gas-and-electricity-use-explained
+            'annual_gas_household' : 11500,     # kWh - https://www.ofgem.gov.uk/information-consumers/energy-advice-households/average-gas-and-electricity-use-explained
             'fraction_elec_lighting' : 0.15,    # none
             'fraction_gas_heating' : 0.66,      # none
             'fraction_house_writing' : 0.125,   # none
-            'laptop_daily_energy': 0.05,        # kWh
-            'laptop_embodied_kg': 197,          # kgCO2e
+            'laptop_daily_energy': 0.05,        # kWh - https://www.ovoenergy.com/guides/energy-guides/how-much-electricity-does-a-home-use
+            'laptop_embodied_kg': 202,          # kgCO2e - https://www.apple.com/environment/pdf/products/notebooks/14-inch_MacBook_Pro_PER_Oct2023.pdf
             'laptop_lifetime_years': 4,         # years
 
             # Additional parameters used by Tomlinson's
-            'training_operational': 5.52e8, # gCO2e
-            'training_inference': 3.82e6, # gCO2e/day
+            'training_operational': 552e6, # gCO2e
+            'inference_operational': 3.82e6, # gCO2e/day
             'gpu_embodied_recycling_kg': 1, # kgCO2e 
-            'training_time_tomlinson': 3222, # hours
+            'training_energy_tomlinson_MWh': 1287,     # Total energy used for training - source: https://arxiv.org/pdf/2104.10350v3
             'words_per_page':250,
-            'words_per_response':412,
-            'queries_per_month': 3e8,        # queries per month
-            'carbon_per_capita_per_hour': 1.71e3 # USA value 
+            'words_per_response':413, # Mean length of ten queries made by the authors
+            'queries_per_day_tomlinson': 10e6,        # queries per day
+            'carbon_per_capita_per_hour': 1.7e3 # US resident value 
 
         }
-
-        include_heating_lighting = True        
+     
         if not(include_heating_lighting):
             self.baseline_params['annual_elec_household'] = 0
             self.baseline_params['annual_gas_household'] = 0
@@ -82,15 +94,15 @@ class AIHumanImpactCalculator:
             # High-impact parameters
             'prompts_per_task': [1, 4, 15],           # Right-skewed user behavior
             'gpu_utilization': [0.40, 0.70, 0.85],         # Patel et al. 2024 range
-            'queries_per_month': [1e9, 3e9, 12e9],         # OpenAI 100M+ users, usage uncertainty
+            'queries_per_month': [1e8, 3e8, 3e9],         # OpenAI 100M+ users, usage uncertainty
             'training_days': [2, 3.5, 14],              # Narayanan et al. scaling with uncertainty
             
             # Medium-impact parameters  
-            'carbon_intensity_elec': [150, 400, 715],           # Denmark (clean) to India (coal-heavy)
+            'carbon_intensity_elec': [28, 175, 703],           # 2024: Iceland/UK/Poland
             'gpu_lifespan_years': [1, 1.5, 2.0],        # Tech obsolescence vs durability
-            'server_lifespan_years': [3, 4, 5],           # Standard enterprise cycles
+            # 'server_lifespan_years': [3, 4, 5],           # Standard enterprise cycles
             'pue': [1.08, 1.15, 1.25],                    # Google/Meta best-in-class to moderate efficiency
-            'efficiency_gain': [0.8, 0.5, 0],                    # Fraction of human time saved by the AI
+            'efficiency_gain': [0.8, 0.3, 0],                    # Fraction of human time saved by the AI
         }
     
     def calculate_ai_emissions(self, params: Dict) -> Dict[str, float]:
@@ -120,7 +132,9 @@ class AIHumanImpactCalculator:
                                      * training_hours 
                                      / (params['server_lifespan_years'] * 365 * 24))
 
-        training_embodied = training_gpu_embodied + training_servers_embodied
+        # No longer count the servers
+        # training_embodied = training_gpu_embodied + training_servers_embodied
+        training_embodied = training_gpu_embodied 
         
 
         # Inference emissions calculation (per month)
@@ -141,7 +155,9 @@ class AIHumanImpactCalculator:
                                      * params['server_embodied_kg'] * 1000 # Convert kg to g 
                                      * inference_hours_per_month 
                                      / (params['server_lifespan_years'] * 365 * 24))
-        inference_embodied = inference_gpu_embodied + inference_server_embodied
+        # No longer count the servers
+        # inference_embodied = inference_gpu_embodied + inference_server_embodied
+        inference_embodied = inference_gpu_embodied
 
 
         # Per-query emissions
@@ -184,10 +200,54 @@ class AIHumanImpactCalculator:
         
         return human_emissions
     
-    def calculate_human_emissions_tomlinson(self, params: Dict) -> float:
+
+
+    # ========================
+    # Tomlinson's calculations
+    # ========================
+    
+    def calculate_human_emissions_tomlinson(self, params: Dict) -> Dict:
         """Replicate Tomlinson's calculation of human emissions """
         
         return params['writing_time_hours'] * params['carbon_per_capita_per_hour']
+    
+    def calculate_ai_emissions_tomlinson(self, params: Dict) -> float:
+
+        training_operational_per_query = (params['training_operational'] 
+                                          / (params['queries_per_day_tomlinson'] * 30)) # Convert days to months
+        inference_operational_per_query = (params['inference_operational'] 
+                                           / params['queries_per_day_tomlinson'])
+
+
+        training_time = (params['training_energy_tomlinson_MWh'] * 1000000 # Convert MWh to Wh
+                         / params['gpu_power_w'])
+        training_embodied = ((params['gpu_embodied_recycling_kg'] 
+                              + params['gpu_embodied_kg']) * 1000 # Convert kg to g
+                             * training_time
+                             / (params['gpu_lifespan_years']*24*365))
+        training_embodied_per_query = training_embodied / (params['queries_per_day_tomlinson'] * 30) # Convert days to months
+                
+        
+        carbon_per_prompt = (training_embodied_per_query
+                             + training_operational_per_query
+                             + inference_operational_per_query)
+        
+        carbon_per_page = (carbon_per_prompt 
+                           * params['words_per_page']
+                           / params['words_per_response'])
+        
+        ai_emissions = {
+            'c_training_embodied': training_embodied_per_query,
+            'c_training_operational': training_operational_per_query,
+            'c_inference_operational': inference_operational_per_query,
+            'carbon_per_prompt': inference_operational_per_query * params['prompts_per_task'],
+            'carbon_per_page': carbon_per_page,
+        }
+
+        return ai_emissions
+
+    
+    # ========================
     
     def calculate_net_impact(self, params: Dict) -> Tuple[float, Dict]:
         """Calculate net impact (AI - Human emissions)"""
@@ -344,6 +404,131 @@ class AIHumanImpactCalculator:
         plt.savefig('./tornado_plot.png')
         return fig
     
+
+    def create_tornado_diagram_v2(self, sensitivity_df: pd.DataFrame):
+        """Redraw of the sensitivity analysis graph
+        TODO: Clean up the parameter labels on the Y axis"""
+
+        ###
+        # Sizing
+        ###
+        font_size_pt = 7
+        offset = 5 # to compensate for the rounding of unit conversions
+        linewidth_pt = 252 - offset  
+        landscapewidth_pt = 516 - offset
+        
+        # 1pt = 1.333px
+        font_size_px = int(font_size_pt*1.333)+1
+        linewidth_px = int(linewidth_pt*1.333)+1
+        landscapewidth_px = int(landscapewidth_pt*1.333)+1
+
+
+        ### 
+        # Paths
+        ###
+        out_path = Path('.')
+
+        # Create the output directory if don't exist
+        Path(out_path).mkdir(parents=True, exist_ok=True)
+
+        # Input data
+        input_path = Path('.')
+
+        ###
+        # Default plot layout
+        ###
+        default_layout = {
+            "title":None,
+            "width":linewidth_px,
+            "height":200,
+            "font":{"size":font_size_px},
+            "yaxis":{'title':{'font':{'size':font_size_px}}},
+            "xaxis":{'title':{'font':{'size':font_size_px}}}
+        }
+
+        ###
+        # Data pre-processing
+        ### 
+
+        df_in = sensitivity_df
+        mins_in = df_in.groupby(by='parameter').min().sort_index().value.to_list()
+        maxs_in = df_in.groupby(by='parameter').max().sort_index().value.to_list()
+        mins_out = df_in.groupby(by='parameter').min().sort_index().net_impact.to_list()
+        maxs_out = df_in.groupby(by='parameter').max().sort_index().net_impact.to_list()
+        parameters = df_in.groupby(by='parameter').max().index
+        baseline_net_impact = df_in[df_in['is_baseline']==True].net_impact.unique()[0]
+
+        df = pd.DataFrame()
+        df['parameter'] = parameters
+        df['in_min'] = mins_in
+        df['in_max'] = maxs_in
+        df['out_min'] = mins_out
+        df['out_max'] = maxs_out
+        df['baseline'] = baseline_net_impact
+        df['delta_min'] = df['out_min'] - df['baseline']
+        df['delta_max'] = df['out_max'] - df['baseline']
+        df['delta_total'] = abs(df['out_min'] - df['out_max'])
+        df.sort_values(by='delta_total', inplace=True,ascending=True)
+
+        ###
+        # Plotting and saving
+        ###
+        fig = go.Figure()
+
+        for col in ["delta_min","delta_max"]:
+            fig.add_trace(go.Bar(
+                y=df["parameter"], 
+                x=df[col], 
+                name=col, 
+                orientation='h',
+                marker=dict(color='#636EFA'),
+                showlegend=False,
+                text=np.round(df[col]+baseline_net_impact, decimals=1),
+                textposition='outside',
+            ))
+
+        annotation = go.layout.Annotation(
+                x=0,
+                y=1.1,
+                xref="x",
+                yref="paper",
+                text="Baseline: "+str(np.round(baseline_net_impact,decimals=1)),
+                showarrow=False,
+                xanchor='center'
+            )
+
+        ticktext = [-10, 0, 10, 20]
+        tickvals = np.subtract(ticktext, baseline_net_impact)
+
+        fig.update_xaxes(
+                title="Net impact [gCO2e/task]",
+                zeroline=True,  # Ensure there's a zero line for divergence
+                zerolinecolor="black",
+                # use array tick mode to show that the counts to the left of zero are still positive.
+                # this is hard coded; generalize this if you plan to create a function that takes unknown or widely varying data
+                tickmode = 'array',     
+                tickvals = tickvals,
+                ticktext = ticktext,
+                range=[-18,35],
+        )
+
+        # Define the custom layout options
+        custom_layout = dict(
+            barmode='relative',  
+            width=linewidth_px,
+            height=250,
+            annotations=[annotation],
+            margin=dict(l=0, r=0, t=25, b=40),
+        )
+        # Combine with the defaults and apply
+        layout = default_layout.copy()
+        layout.update(custom_layout)
+        fig.update_layout(layout)
+
+        fig.write_image(out_path/'sensitivity.pdf')
+
+        return fig
+    
     def run_full_analysis(self):
         """Run complete sensitivity and scenario analysis"""
         print("Running Parametric Sensitivity Analysis...")
@@ -357,7 +542,7 @@ class AIHumanImpactCalculator:
 
         
         # Print results
-        print("\n1. BASELINE RESULTS")
+        print("\n1.1 BASELINE RESULTS")
         baseline_net_impact, baseline_details = self.calculate_net_impact(self.baseline_params)
         print(f"Net Impact: \t {baseline_net_impact:.2f} gCO2e/task")
         print(f"AI only: \t {baseline_details['ai_total']:.2f} gCO2e/task")
@@ -366,6 +551,15 @@ class AIHumanImpactCalculator:
         pprint.pprint(baseline_details['human_breakdown'])
         # print(f"AI + human: {baseline_details['ai_+_human']:.2f} gCO2e/task")
         # print("Operational energy of inference per prompt", baseline_details['inference_energy'])
+
+        print("\n1.2 Tomlinson's RESULTS")
+        human_total = self.calculate_human_emissions_tomlinson(self.baseline_params)
+        ai_impact = self.calculate_ai_emissions_tomlinson(self.baseline_params)
+        print(f"AI only: \t {ai_impact['carbon_per_page']:.2f} gCO2e/task")
+        print(f"Human only: \t {human_total:.2f} gCO2e/task")
+        print(f"Net impact: \t {ai_impact['carbon_per_page']-human_total:.2f} gCO2e/task")
+        pprint.pprint(ai_impact)
+
         
         print("\n2. PARAMETER SENSITIVITY RANGES")
         print("the range of net impact in gCO2 that results from varying this param off the baseline")
@@ -382,7 +576,9 @@ class AIHumanImpactCalculator:
         
         
         # Create tornado diagram
-        tornado_fig = self.create_tornado_diagram(sensitivity_df)
+        # tornado_fig = self.create_tornado_diagram(sensitivity_df)
+        tornado_fig = self.create_tornado_diagram_v2(sensitivity_df)
+
         
         return {
             'sensitivity_df': sensitivity_df,
@@ -397,7 +593,8 @@ if __name__ == "__main__":
     results = calculator.run_full_analysis()
     
     # Show the tornado diagram
-    plt.show()
+    # plt.show()
+    results['tornado_fig'].show()
     
     # Save results to CSV
     results['sensitivity_df'].to_csv('sensitivity_analysis.csv', index=False)
