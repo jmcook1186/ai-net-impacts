@@ -526,7 +526,7 @@ class AIHumanImpactCalculator:
         fig.update_layout(layout)
 
         fig.write_image(out_path/'sensitivity.pdf')
-
+        fig.write_image(out_path/'sensitivity.png')
         return fig
     
     def run_full_analysis(self):
