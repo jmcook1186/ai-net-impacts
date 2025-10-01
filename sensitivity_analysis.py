@@ -50,7 +50,7 @@ class AIHumanImpactCalculator:
             # Low-impact parameters (fixed for this analysis)
             'writing_time_hours': 0.83,      # Time to write one page (hours)
             'gpu_power_w': 400,              # GPU power consumption (Watts): https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet.pdf
-            'num_training_gpus': 10000,      # Number of GPUs for training
+            'num_training_gpus': 10000,      # Number of GPUs for training - https://developer.nvidia.com/blog/openai-presents-gpt-3-a-175-billion-parameters-language-model/
             'num_inference_gpus': 14468,     # Number of GPUs for inference
             'gpu_embodied_kg': 150,          # Embodied carbon per GPU (kg CO2e)
             'server_embodied_kg': 9180,      # Embodied carbon per server (kg CO2e)
