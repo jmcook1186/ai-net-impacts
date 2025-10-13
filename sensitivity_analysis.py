@@ -41,7 +41,7 @@ class AIHumanImpactCalculator:
             
             # Medium-impact parameters
             # 'carbon_intensity_elec': 400,         # gCO2e/kWh, IEA projected 2027 global average
-            'carbon_intensity_elec': 175,    # gCO2e/kWh - 2024 UK average carbon intensity
+            'carbon_intensity_elec': 207,    # gCO2e/kWh - 2024 UK average carbon intensity (DEFRA value)
             'carbon_intensity_gas': 185,     # gCO2e/kWh - Natural gaz carbon intensity
             'gpu_lifespan_years': 1.5,       # GPU lifespan in years, from Tomlinson et al
             'server_lifespan_years': 4,      # Server lifespan in years, Standard enterprise lifecycle
@@ -50,7 +50,7 @@ class AIHumanImpactCalculator:
             # Low-impact parameters (fixed for this analysis)
             'writing_time_hours': 0.83,      # Time to write one page (hours)
             'gpu_power_w': 400,              # GPU power consumption (Watts): https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet.pdf
-            'num_training_gpus': 10000,      # Number of GPUs for training - https://developer.nvidia.com/blog/openai-presents-gpt-3-a-175-billion-parameters-language-model/
+            'num_training_gpus': 10000,      # Number of GPUs for training - https://developer.nvidia.com/blog/openai-presents-gpt-3-a-175-billion-parameters-language-model/q
             'num_inference_gpus': 14468,     # Number of GPUs for inference
             'gpu_embodied_kg': 150,          # Embodied carbon per GPU (kg CO2e)
             'server_embodied_kg': 9180,      # Embodied carbon per server (kg CO2e)
@@ -68,7 +68,7 @@ class AIHumanImpactCalculator:
             'fraction_elec_lighting' : 0.15,    # none
             'fraction_gas_heating' : 0.66,      # none
             'fraction_house_writing' : 0.125,   # none
-            'laptop_daily_energy': 0.05,        # kWh - https://www.ovoenergy.com/guides/energy-guides/how-much-electricity-does-a-home-use
+            'laptop_average_power': 50,         # W - https://www.ovoenergy.com/guides/energy-guides/how-much-electricity-does-a-home-use
             'laptop_embodied_kg': 202,          # kgCO2e - https://www.apple.com/environment/pdf/products/notebooks/14-inch_MacBook_Pro_PER_Oct2023.pdf
             'laptop_lifetime_years': 4,         # years
 
@@ -188,7 +188,8 @@ class AIHumanImpactCalculator:
         c_heating = (params['annual_gas_household']*params['fraction_gas_heating']
                       *params['fraction_house_writing']*params['writing_time_hours']/(24*365)
                       *params['carbon_intensity_gas'])
-        c_laptop_ope = params['laptop_daily_energy']*params['writing_time_hours']/24*params['carbon_intensity_elec']
+        c_laptop_ope = (params['laptop_average_power']*params['writing_time_hours']/1000 # Convert from Wh to kWh
+                        *params['carbon_intensity_elec'])
         c_laptop_emb = params['laptop_embodied_kg']*1000*params['writing_time_hours']/(params['laptop_lifetime_years']*24*356)
 
         human_emissions = {
@@ -497,7 +498,7 @@ class AIHumanImpactCalculator:
                 xanchor='center'
             )
 
-        ticktext = [-10, 0, 10, 20]
+        ticktext = [-20, 0, 20]
         tickvals = np.subtract(ticktext, baseline_net_impact)
 
         fig.update_xaxes(
@@ -509,7 +510,7 @@ class AIHumanImpactCalculator:
                 tickmode = 'array',     
                 tickvals = tickvals,
                 ticktext = ticktext,
-                range=[-18,35],
+                range=[-25,40],
         )
 
         # Define the custom layout options
@@ -526,7 +527,7 @@ class AIHumanImpactCalculator:
         fig.update_layout(layout)
 
         fig.write_image(out_path/'sensitivity.pdf')
-        fig.write_image(out_path/'sensitivity.png')
+
         return fig
     
     def run_full_analysis(self):
@@ -594,7 +595,7 @@ if __name__ == "__main__":
     
     # Show the tornado diagram
     # plt.show()
-    results['tornado_fig'].show()
+    # results['tornado_fig'].show()
     
     # Save results to CSV
     results['sensitivity_df'].to_csv('sensitivity_analysis.csv', index=False)
